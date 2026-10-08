@@ -5,7 +5,6 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-from scipy import stats
 
 
 # ============================================================
@@ -33,7 +32,6 @@ def get_connection():
         DB,
         check_same_thread=False
     )
-
 
 con = get_connection()
 
@@ -218,22 +216,14 @@ with tab1:
         chase_rate = chase_wins / chase_total
 
         # One-sample proportion test against 50%
-        z_stat = (
-            (chase_rate - 0.50)
-            /
-            ((0.50 * 0.50 / chase_total) ** 0.5)
-        )
-
-        p_value = 2 * (
-            1 - stats.norm.cdf(abs(z_stat))
-        )
-
-    else:
-
-        chase_rate = 0
-        p_value = 1
-
-
+    z_stat = (
+        (chase_rate - 0.50)
+        /
+        ((0.50 * 0.50 / chase_total) ** 0.5)
+    )
+    p_value = math.erfc(
+        abs(z_stat) / math.sqrt(2)
+    )
     # ========================================================
     # THREE METRIC CARDS
     # ========================================================
