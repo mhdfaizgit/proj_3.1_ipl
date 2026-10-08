@@ -18,10 +18,10 @@ st.set_page_config(
 
 
 # ============================================================
-# DATABASE CONNECTION
+# DATABASE
 # ============================================================
 
-DB = r'C:\Users\Scalefusion admin\OneDrive\Documents\OJT- SEM 3\project_3.1 sem 3\data\raw\ipl.db'
+DB = "../data/ipl.db"
 
 
 @st.cache_resource
@@ -49,81 +49,66 @@ def q(sql, params=()):
 
 
 # ============================================================
-# DATABASE TEST
+# CHECK DATABASE CONNECTION
 # ============================================================
 
 try:
 
-    test_df = q("""
-        SELECT name
+    objects_df = q("""
+        SELECT
+            name,
+            type
         FROM sqlite_master
         WHERE type IN ('table', 'view')
+        ORDER BY name
     """)
 
 except Exception as e:
 
-    st.error("Database connection failed.")
+    st.error("❌ Database connection failed")
 
     st.code(str(e))
 
     st.info(
-        "Check that ipl.db is inside the data folder "
-        "and app.py is inside the dashboard folder."
+        "Make sure your project structure is:\n\n"
+        "proj_3.1_ipl/\n"
+        "├── data/ipl.db\n"
+        "└── dashboard/app.py"
     )
 
     st.stop()
 
 
 # ============================================================
-# TITLE
-# ============================================================
-
-st.title("🏏 IPL Match Analytics")
-
-st.write(
-    "For the match analyst — deciding what happened "
-    "in a match and across the league."
-)
-
-st.caption(
-    "Domain C — Matches"
-)
-
-
-# ============================================================
-# CHECK REQUIRED TABLES / VIEWS
+# REQUIRED OBJECTS
 # ============================================================
 
 available_objects = set(
-    test_df["name"].tolist()
+    objects_df["name"].tolist()
 )
 
 required_objects = [
     "matches_clean",
-    "v_ball",
-    "v_match_totals"
+    "v_ball"
 ]
 
 missing_objects = [
-    obj
-    for obj in required_objects
-    if obj not in available_objects
+    x
+    for x in required_objects
+    if x not in available_objects
 ]
-
 
 if missing_objects:
 
-    st.error(
-        "The following required database objects are missing:"
-    )
+    st.error("❌ Required database objects are missing")
 
-    for obj in missing_objects:
-        st.write(f"- `{obj}`")
+    for item in missing_objects:
+        st.write(f"- `{item}`")
 
-    st.write("Available tables/views:")
+    st.write("### Available objects")
 
     st.dataframe(
-        test_df,
+        objects_df,
         use_container_width=True,
         hide_index=True
     )
@@ -132,43 +117,180 @@ if missing_objects:
 
 
 # ============================================================
-# SEASON LIST
+# CHECK MATCHES_CLEAN COLUMNS
 # ============================================================
 
 try:
 
-    seasons_df = q("""
-        SELECT DISTINCT season_year
-        FROM matches_clean
-        WHERE season_year IS NOT NULL
-        ORDER BY season_year
+    matches_columns_df = q("""
+        PRAGMA table_info(matches_clean)
     """)
 
-    seasons = seasons_df[
-        "season_year"
-    ].tolist()
+    matches_columns = set(
+        matches_columns_df["name"].tolist()
+    )
 
 except Exception as e:
 
-    st.error("Could not read season_year from matches_clean.")
+    st.error(
+        "Could not read matches_clean structure."
+    )
 
     st.code(str(e))
 
     st.stop()
 
 
-if not seasons:
+required_match_columns = [
+    "match_id",
+    "venue_clean",
+    "city_clean",
+    "season_year",
+    "team1",
+    "team2",
+    "result",
+    "match_winner",
+    "player_of_match",
+    "toss_winner",
+    "toss_decision"
+]
 
-    st.error("No seasons were found in the database.")
+missing_match_columns = [
+    col
+    for col in required_match_columns
+    if col not in matches_columns
+]
+
+if missing_match_columns:
+
+    st.error(
+        "❌ Your matches_clean table is missing columns:"
+    )
+
+    for col in missing_match_columns:
+        st.write(f"- `{col}`")
+
+    st.write("### Actual matches_clean columns")
+
+    st.dataframe(
+        matches_columns_df,
+        use_container_width=True,
+        hide_index=True
+    )
 
     st.stop()
 
 
 # ============================================================
-# TWO TABS
+# CHECK V_BALL COLUMNS
 # ============================================================
 
-tab1, tab2 = st.tabs(
+try:
+
+    ball_columns_df = q("""
+        PRAGMA table_info(v_ball)
+    """)
+
+    ball_columns = set(
+        ball_columns_df["name"].tolist()
+    )
+
+except Exception as e:
+
+    st.error(
+        "Could not read v_ball structure."
+    )
+
+    st.code(str(e))
+
+    st.stop()
+
+
+# ============================================================
+# PAGE HEADER
+# ============================================================
+
+st.title("🏏 IPL Match Analytics")
+
+st.write(
+    "Match analysis dashboard for understanding "
+    "IPL scoring, results, chasing, players, toss "
+    "and match momentum."
+)
+
+st.caption(
+    "Domain C — Matches"
+)
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.header("🏏 IPL Filters")
+
+    st.write(
+        "Use the controls below to explore the IPL data."
+    )
+
+    st.divider()
+
+    st.caption(
+        "Database: data/ipl.db"
+    )
+
+    st.caption(
+        "Dashboard: dashboard/app.py"
+    )
+
+
+# ============================================================
+# GET SEASONS
+# ============================================================
+
+try:
+
+    seasons_df = q("""
+        SELECT DISTINCT
+            season_year
+        FROM matches_clean
+        WHERE season_year IS NOT NULL
+        ORDER BY season_year
+    """)
+
+    seasons = (
+        seasons_df["season_year"]
+        .dropna()
+        .tolist()
+    )
+
+except Exception as e:
+
+    st.error(
+        "Could not load seasons."
+    )
+
+    st.code(str(e))
+
+    st.stop()
+
+
+if len(seasons) == 0:
+
+    st.error(
+        "No seasons found in matches_clean."
+    )
+
+    st.stop()
+
+
+# ============================================================
+# TWO MAIN TABS
+# ============================================================
+
+overview_tab, detail_tab = st.tabs(
     [
         "📊 Competition Overview",
         "🏏 Match Detail"
@@ -181,24 +303,24 @@ tab1, tab2 = st.tabs(
 # COMPETITION OVERVIEW
 # ################################################################
 
-with tab1:
+with overview_tab:
 
     st.header(
-        "Overview — The Whole Competition"
+        "Competition Overview"
     )
 
     st.write(
         "League-wide trends showing how IPL scoring, "
-        "chasing and match results have changed."
+        "chasing and match outcomes have changed."
     )
 
 
-    # ============================================================
+    # ========================================================
     # SEASON FILTER
-    # ============================================================
+    # ========================================================
 
     selected_seasons = st.multiselect(
-        "Season",
+        "Select Season(s)",
         options=seasons,
         default=seasons,
         key="overview_seasons"
@@ -214,135 +336,180 @@ with tab1:
         st.stop()
 
 
-    # SQL placeholders
-    season_placeholders = ",".join(
+    placeholders = ",".join(
         ["?"] * len(selected_seasons)
     )
 
 
-    # ============================================================
-    # CARD 1
-    # TOTAL MATCHES + SEASONS
-    # ============================================================
+    # ========================================================
+    # KPI 1 — MATCHES
+    # ========================================================
 
-    scale_df = q("""
+    matches_count_df = q(
+        f"""
         SELECT
-            COUNT(DISTINCT match_id) AS total_matches,
-            COUNT(DISTINCT season_year) AS total_seasons
+            COUNT(DISTINCT match_id) AS total_matches
         FROM matches_clean
-    """)
-
+        WHERE season_year IN ({placeholders})
+        """,
+        tuple(selected_seasons)
+    )
 
     total_matches = int(
-        scale_df.iloc[0]["total_matches"] or 0
-    )
-
-    total_seasons = int(
-        scale_df.iloc[0]["total_seasons"] or 0
+        matches_count_df.iloc[0]["total_matches"]
+        or 0
     )
 
 
-    # ============================================================
-    # CARD 2
-    # TOTAL RUNS
-    # ============================================================
+    # ========================================================
+    # KPI 2 — TOTAL RUNS
+    # ========================================================
 
-    try:
+    total_runs = 0
 
-        total_runs_df = q(
-            f"""
-            SELECT
-                SUM(total_runs) AS total_runs
-            FROM v_ball
-            WHERE season_year IN ({season_placeholders})
-            """,
-            tuple(selected_seasons)
-        )
+    if "season_year" in ball_columns and "total_runs" in ball_columns:
 
-        total_runs = int(
-            total_runs_df.iloc[0]["total_runs"] or 0
-        )
+        try:
 
-    except Exception:
-
-        total_runs = 0
-
-
-    # ============================================================
-    # CARD 3
-    # CHASE WIN RATE
-    # ============================================================
-
-    try:
-
-        chase_df = q(
-            f"""
-            SELECT
-
-                COUNT(*) AS total_matches,
-
-                SUM(
-                    CASE
-                        WHEN winner = team2
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS chase_wins
-
-            FROM matches_clean
-
-            WHERE season_year IN ({season_placeholders})
-
-            AND winner IS NOT NULL
-            """,
-            tuple(selected_seasons)
-        )
-
-        chase_total = int(
-            chase_df.iloc[0]["total_matches"] or 0
-        )
-
-        chase_wins = int(
-            chase_df.iloc[0]["chase_wins"] or 0
-        )
-
-    except Exception:
-
-        chase_total = 0
-        chase_wins = 0
-
-
-    if chase_total > 0:
-
-        chase_rate = (
-            chase_wins / chase_total
-        )
-
-        # Test against 50%
-        z_stat = (
-            (chase_rate - 0.50)
-            /
-            math.sqrt(
-                (0.50 * 0.50)
-                /
-                chase_total
+            runs_df = q(
+                f"""
+                SELECT
+                    SUM(total_runs) AS total_runs
+                FROM v_ball
+                WHERE season_year IN ({placeholders})
+                """,
+                tuple(selected_seasons)
             )
+
+            total_runs = int(
+                runs_df.iloc[0]["total_runs"]
+                or 0
+            )
+
+        except Exception:
+
+            total_runs = 0
+
+
+    # ========================================================
+    # KPI 3 — CHASE WIN RATE
+    # ========================================================
+
+    chase_rate = 0.0
+    chase_wins = 0
+    chase_matches = 0
+    p_value = 1.0
+
+    required_chase_columns = {
+        "match_id",
+        "innings",
+        "batting_team",
+        "match_winner"
+    }
+
+    if required_chase_columns.issubset(
+        ball_columns.union(
+            matches_columns
         )
+    ):
 
-        # Two-sided normal approximation
-        p_value = math.erfc(
-            abs(z_stat) / math.sqrt(2)
-        )
+        try:
 
-    else:
+            chase_df = q(
+                f"""
+                WITH innings_two AS (
 
-        chase_rate = 0
-        p_value = 1.0
+                    SELECT
+                        match_id,
+                        batting_team AS chasing_team
+
+                    FROM v_ball
+
+                    WHERE innings = 2
+
+                    GROUP BY
+                        match_id,
+                        batting_team
+
+                )
+
+                SELECT
+
+                    i.match_id,
+
+                    i.chasing_team,
+
+                    m.match_winner
+
+                FROM innings_two i
+
+                JOIN matches_clean m
+                    ON i.match_id = m.match_id
+
+                WHERE m.season_year
+                    IN ({placeholders})
+
+                AND m.match_winner IS NOT NULL
+                """,
+                tuple(selected_seasons)
+            )
 
 
-    # ============================================================
-    # THREE METRIC CARDS
-    # ============================================================
+            if not chase_df.empty:
+
+                chase_df["chase_win"] = (
+                    chase_df["chasing_team"]
+                    ==
+                    chase_df["match_winner"]
+                )
+
+                chase_matches = len(
+                    chase_df
+                )
+
+                chase_wins = int(
+                    chase_df["chase_win"].sum()
+                )
+
+                if chase_matches > 0:
+
+                    chase_rate = (
+                        chase_wins
+                        /
+                        chase_matches
+                    )
+
+
+                    # ------------------------------------------------
+                    # Approximate two-sided test against 50%
+                    # ------------------------------------------------
+
+                    z_stat = (
+                        (chase_rate - 0.50)
+                        /
+                        math.sqrt(
+                            (0.50 * 0.50)
+                            /
+                            chase_matches
+                        )
+                    )
+
+                    p_value = math.erfc(
+                        abs(z_stat)
+                        /
+                        math.sqrt(2)
+                    )
+
+        except Exception:
+
+            chase_rate = 0.0
+            chase_wins = 0
+            chase_matches = 0
+
+
+    # ========================================================
+    # THREE KPI CARDS
+    # ========================================================
 
     card1, card2, card3 = st.columns(3)
 
@@ -350,19 +517,19 @@ with tab1:
     with card1:
 
         st.metric(
-            "Matches Played",
+            "🏏 Matches Played",
             f"{total_matches:,}"
         )
 
         st.caption(
-            f"Scale: {total_seasons} seasons"
+            f"{len(selected_seasons)} season(s) selected"
         )
 
 
     with card2:
 
         st.metric(
-            "Total Runs",
+            "🏃 Total Runs",
             f"{total_runs:,}"
         )
 
@@ -374,335 +541,497 @@ with tab1:
     with card3:
 
         st.metric(
-            "Chase Win Rate",
+            "🎯 Chase Win Rate",
             f"{chase_rate:.1%}"
         )
 
         st.caption(
-            f"n = {chase_total:,} | p = {p_value:.4f}"
+            f"n = {chase_matches:,} | "
+            f"p = {p_value:.4f}"
         )
 
 
     st.divider()
 
 
-    # ============================================================
+    # ========================================================
     # HERO VISUAL
-    # AVERAGE FIRST INNINGS SCORE BY SEASON
-    # ============================================================
+    # AVERAGE FIRST INNINGS SCORE
+    # ========================================================
 
     st.subheader(
-        "Average first-innings score shows how the scoring environment has changed"
+        "📈 Average first-innings score by season"
     )
 
+    if {
+        "season_year",
+        "innings",
+        "total_runs",
+        "match_id"
+    }.issubset(ball_columns):
 
-    try:
+        try:
 
-        avg_score_df = q(
-            f"""
-            SELECT
-
-                season_year,
-
-                ROUND(
-                    AVG(total_runs),
-                    2
-                ) AS average_innings_score,
-
-                COUNT(DISTINCT match_id) AS matches
-
-            FROM v_ball
-
-            WHERE innings = 1
-
-            AND season_year IN ({season_placeholders})
-
-            GROUP BY season_year
-
-            ORDER BY season_year
-            """,
-            tuple(selected_seasons)
-        )
-
-    except Exception as e:
-
-        avg_score_df = pd.DataFrame()
-
-        st.error(
-            "Could not create average innings score chart."
-        )
-
-        st.code(str(e))
-
-
-    if not avg_score_df.empty:
-
-        league_average = avg_score_df[
-            "average_innings_score"
-        ].mean()
-
-
-        fig = px.line(
-            avg_score_df,
-            x="season_year",
-            y="average_innings_score",
-            markers=True,
-            title=(
-                "Average first-innings score by season"
-            ),
-            labels={
-                "season_year": "Season",
-                "average_innings_score":
-                    "Average score"
-            }
-        )
-
-
-        fig.add_hline(
-            y=league_average,
-            line_dash="dash",
-            annotation_text=(
-                f"League average: "
-                f"{league_average:.1f}"
-            )
-        )
-
-
-        fig.update_layout(
-            height=500
-        )
-
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
-
-
-        st.caption(
-            f"n = {len(avg_score_df):,} seasons"
-        )
-
-
-    # ============================================================
-    # SUPPORTING VISUAL
-    # CHASE WIN RATE BY TARGET BAND
-    # ============================================================
-
-    st.subheader(
-        "Higher targets make successful chasing harder"
-    )
-
-
-    try:
-
-        target_df = q(
-            f"""
-            WITH match_data AS (
-
+            avg_score_df = q(
+                f"""
                 SELECT
+
+                    season_year,
 
                     match_id,
 
-                    MAX(
-                        CASE
-                            WHEN innings = 1
-                            THEN total_runs
-                            ELSE 0
-                        END
-                    ) AS first_innings_runs
+                    SUM(total_runs)
+                        AS innings_runs
 
                 FROM v_ball
 
-                WHERE season_year IN ({season_placeholders})
+                WHERE innings = 1
 
-                GROUP BY match_id
+                AND season_year
+                    IN ({placeholders})
 
+                GROUP BY
+                    season_year,
+                    match_id
+                """,
+                tuple(selected_seasons)
             )
 
-            SELECT
 
-                CASE
+            if not avg_score_df.empty:
 
-                    WHEN first_innings_runs < 120
-                        THEN 'Below 120'
+                season_score_df = (
+                    avg_score_df
+                    .groupby("season_year")
+                    .agg(
+                        average_score=(
+                            "innings_runs",
+                            "mean"
+                        ),
+                        matches=(
+                            "match_id",
+                            "nunique"
+                        )
+                    )
+                    .reset_index()
+                )
 
-                    WHEN first_innings_runs < 150
-                        THEN '120–149'
 
-                    WHEN first_innings_runs < 180
-                        THEN '150–179'
+                season_score_df[
+                    "average_score"
+                ] = season_score_df[
+                    "average_score"
+                ].round(2)
 
-                    WHEN first_innings_runs < 200
-                        THEN '180–199'
 
-                    ELSE '200+'
+                league_average = (
+                    season_score_df[
+                        "average_score"
+                    ].mean()
+                )
 
-                END AS target_band,
 
-                COUNT(*) AS matches
+                fig = px.line(
+                    season_score_df,
+                    x="season_year",
+                    y="average_score",
+                    markers=True,
+                    text="average_score",
+                    title=(
+                        "Average first-innings score "
+                        "shows the scoring environment"
+                    ),
+                    labels={
+                        "season_year": "Season",
+                        "average_score":
+                            "Average score"
+                    }
+                )
 
-            FROM match_data
 
-            GROUP BY target_band
+                fig.add_hline(
+                    y=league_average,
+                    line_dash="dash",
+                    annotation_text=(
+                        f"Overall average: "
+                        f"{league_average:.1f}"
+                    )
+                )
 
-            ORDER BY
-                CASE target_band
 
-                    WHEN 'Below 120' THEN 1
-                    WHEN '120–149' THEN 2
-                    WHEN '150–179' THEN 3
-                    WHEN '180–199' THEN 4
-                    WHEN '200+' THEN 5
+                fig.update_traces(
+                    texttemplate="%{text:.1f}",
+                    textposition="top center"
+                )
 
-                END
-            """,
-            tuple(selected_seasons)
+
+                fig.update_layout(
+                    height=500
+                )
+
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+
+                st.caption(
+                    "n = matches used in each season."
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Average score chart could not be created."
+            )
+
+            st.code(str(e))
+
+    else:
+
+        st.info(
+            "v_ball does not contain the columns "
+            "required for this chart."
         )
 
-    except Exception:
 
-        target_df = pd.DataFrame()
+    # ========================================================
+    # CHASE WIN RATE BY TARGET BAND
+    # ========================================================
+
+    st.subheader(
+        "🎯 Chase win rate by first-innings target"
+    )
 
 
-    if not target_df.empty:
+    if {
+        "match_id",
+        "innings",
+        "total_runs",
+        "batting_team"
+    }.issubset(ball_columns):
 
-        # Calculate chase rate separately
-        # using match results
+        try:
 
-        target_results = q(
+            target_df = q(
+                f"""
+                WITH first_innings AS (
+
+                    SELECT
+
+                        match_id,
+
+                        SUM(total_runs)
+                            AS first_innings_runs
+
+                    FROM v_ball
+
+                    WHERE innings = 1
+
+                    GROUP BY match_id
+
+                ),
+
+                second_innings AS (
+
+                    SELECT
+
+                        match_id,
+
+                        batting_team
+                            AS chasing_team
+
+                    FROM v_ball
+
+                    WHERE innings = 2
+
+                    GROUP BY
+                        match_id,
+                        batting_team
+
+                )
+
+                SELECT
+
+                    f.match_id,
+
+                    f.first_innings_runs,
+
+                    s.chasing_team,
+
+                    m.match_winner
+
+                FROM first_innings f
+
+                JOIN second_innings s
+                    ON f.match_id = s.match_id
+
+                JOIN matches_clean m
+                    ON f.match_id = m.match_id
+
+                WHERE m.season_year
+                    IN ({placeholders})
+
+                AND m.match_winner IS NOT NULL
+                """,
+                tuple(selected_seasons)
+            )
+
+
+            if not target_df.empty:
+
+                target_df["target_band"] = pd.cut(
+                    target_df[
+                        "first_innings_runs"
+                    ],
+                    bins=[
+                        -1,
+                        119,
+                        149,
+                        179,
+                        199,
+                        float("inf")
+                    ],
+                    labels=[
+                        "Below 120",
+                        "120–149",
+                        "150–179",
+                        "180–199",
+                        "200+"
+                    ]
+                )
+
+
+                target_df["chase_win"] = (
+                    target_df["chasing_team"]
+                    ==
+                    target_df["match_winner"]
+                )
+
+
+                target_band_df = (
+                    target_df
+                    .groupby(
+                        "target_band",
+                        observed=False
+                    )
+                    .agg(
+                        matches=(
+                            "match_id",
+                            "count"
+                        ),
+                        chase_wins=(
+                            "chase_win",
+                            "sum"
+                        )
+                    )
+                    .reset_index()
+                )
+
+
+                target_band_df[
+                    "chase_win_rate"
+                ] = (
+                    target_band_df[
+                        "chase_wins"
+                    ]
+                    /
+                    target_band_df[
+                        "matches"
+                    ]
+                    *
+                    100
+                )
+
+
+                fig = px.bar(
+                    target_band_df,
+                    x="target_band",
+                    y="chase_win_rate",
+                    text="chase_win_rate",
+                    title=(
+                        "Chasing becomes harder "
+                        "as the target increases"
+                    ),
+                    labels={
+                        "target_band":
+                            "First-innings score",
+                        "chase_win_rate":
+                            "Chase win rate (%)"
+                    }
+                )
+
+
+                fig.add_hline(
+                    y=50,
+                    line_dash="dash",
+                    annotation_text="50%"
+                )
+
+
+                fig.update_traces(
+                    texttemplate="%{text:.1f}%",
+                    textposition="outside"
+                )
+
+
+                fig.update_layout(
+                    height=500
+                )
+
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+
+                st.caption(
+                    "n = matches in each target band."
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Target-band analysis could not be created."
+            )
+
+            st.code(str(e))
+
+
+    # ========================================================
+    # SIXES BY SEASON
+    # ========================================================
+
+    st.subheader(
+        "💥 Sixes by season"
+    )
+
+
+    if {
+        "season_year",
+        "batsman_runs"
+    }.issubset(ball_columns):
+
+        try:
+
+            sixes_df = q(
+                f"""
+                SELECT
+
+                    season_year,
+
+                    SUM(
+                        CASE
+                            WHEN batsman_runs = 6
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS sixes
+
+                FROM v_ball
+
+                WHERE season_year
+                    IN ({placeholders})
+
+                GROUP BY season_year
+
+                ORDER BY season_year
+                """,
+                tuple(selected_seasons)
+            )
+
+
+            if not sixes_df.empty:
+
+                fig = px.bar(
+                    sixes_df,
+                    x="season_year",
+                    y="sixes",
+                    text="sixes",
+                    title=(
+                        "Total sixes hit by season"
+                    ),
+                    labels={
+                        "season_year": "Season",
+                        "sixes": "Sixes"
+                    }
+                )
+
+
+                fig.update_traces(
+                    textposition="outside"
+                )
+
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Sixes chart could not be created."
+            )
+
+            st.code(str(e))
+
+
+    # ========================================================
+    # MATCH RESULT DISTRIBUTION
+    # ========================================================
+
+    st.subheader(
+        "🏆 Match result distribution"
+    )
+
+
+    try:
+
+        result_df = q(
             f"""
             SELECT
 
-                m.match_id,
+                COALESCE(
+                    result,
+                    'Unknown'
+                ) AS result,
 
-                m.team2,
+                COUNT(*) AS matches
 
-                m.winner,
+            FROM matches_clean
 
-                SUM(
-                    CASE
-                        WHEN v.innings = 1
-                        THEN v.total_runs
-                        ELSE 0
-                    END
-                ) AS first_innings_runs
+            WHERE season_year
+                IN ({placeholders})
 
-            FROM matches_clean m
+            GROUP BY result
 
-            JOIN v_ball v
-                ON m.match_id = v.match_id
-
-            WHERE m.season_year IN ({season_placeholders})
-
-            GROUP BY
-                m.match_id,
-                m.team2,
-                m.winner
+            ORDER BY matches DESC
             """,
             tuple(selected_seasons)
         )
 
 
-        if not target_results.empty:
-
-            target_results["target_band"] = pd.cut(
-                target_results[
-                    "first_innings_runs"
-                ],
-                bins=[
-                    -1,
-                    119,
-                    149,
-                    179,
-                    199,
-                    float("inf")
-                ],
-                labels=[
-                    "Below 120",
-                    "120–149",
-                    "150–179",
-                    "180–199",
-                    "200+"
-                ]
-            )
-
-
-            chase_band_df = (
-                target_results
-                .groupby(
-                    "target_band",
-                    observed=False
-                )
-                .agg(
-                    matches=("match_id", "count"),
-                    chase_wins=(
-                        "winner",
-                        lambda x: (
-                            x.notna().sum()
-                        )
-                    )
-                )
-                .reset_index()
-            )
-
-
-            # Correct chase wins using team2
-            target_results["chase_win"] = (
-                target_results["winner"]
-                ==
-                target_results["team2"]
-            )
-
-
-            chase_band_df = (
-                target_results
-                .groupby(
-                    "target_band",
-                    observed=False
-                )
-                .agg(
-                    matches=("match_id", "count"),
-                    chase_wins=("chase_win", "sum")
-                )
-                .reset_index()
-            )
-
-
-            chase_band_df["chase_win_rate"] = (
-                100
-                *
-                chase_band_df["chase_wins"]
-                /
-                chase_band_df["matches"]
-            )
-
+        if not result_df.empty:
 
             fig = px.bar(
-                chase_band_df,
-                x="target_band",
-                y="chase_win_rate",
-                text="chase_win_rate",
+                result_df,
+                x="result",
+                y="matches",
+                text="matches",
                 title=(
-                    "Chase win rate falls across higher target bands"
+                    "How matches ended"
                 ),
                 labels={
-                    "target_band": "Target band",
-                    "chase_win_rate":
-                        "Chase win rate (%)"
+                    "result": "Result",
+                    "matches": "Matches"
                 }
             )
 
 
-            fig.add_hline(
-                y=50,
-                line_dash="dash",
-                annotation_text="50% even contest"
-            )
-
-
             fig.update_traces(
-                texttemplate="%{text:.1f}%",
                 textposition="outside"
             )
 
@@ -712,189 +1041,34 @@ with tab1:
                 use_container_width=True
             )
 
+    except Exception as e:
 
-            st.caption(
-                "Each bar is backed by the number of matches shown."
-            )
-
-
-    # ============================================================
-    # VISUAL 3
-    # SIXES BY SEASON
-    # ============================================================
-
-    st.subheader(
-        "Six-hitting has changed across IPL seasons"
-    )
-
-
-    try:
-
-        sixes_df = q(
-            f"""
-            SELECT
-
-                season_year,
-
-                SUM(
-                    CASE
-                        WHEN batsman_runs = 6
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS sixes,
-
-                COUNT(DISTINCT match_id) AS matches
-
-            FROM v_ball
-
-            WHERE season_year IN ({season_placeholders})
-
-            GROUP BY season_year
-
-            ORDER BY season_year
-            """,
-            tuple(selected_seasons)
+        st.warning(
+            "Result chart could not be created."
         )
 
-    except Exception:
-
-        sixes_df = pd.DataFrame()
+        st.code(str(e))
 
 
-    if not sixes_df.empty:
-
-        fig = px.bar(
-            sixes_df,
-            x="season_year",
-            y="sixes",
-            text="sixes",
-            title=(
-                "Sixes hit by season"
-            ),
-            labels={
-                "season_year": "Season",
-                "sixes": "Sixes"
-            }
-        )
-
-
-        fig.update_traces(
-            textposition="outside"
-        )
-
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
-
-
-        st.caption(
-            "n = matches represented in each season."
-        )
-
-
-    # ============================================================
-    # VISUAL 4
-    # WIN MARGIN TYPE
-    # ============================================================
-
-    st.subheader(
-        "IPL matches are decided by defending or chasing"
-    )
-
-
-    try:
-
-        margin_df = q(
-            f"""
-            SELECT
-
-                CASE
-
-                    WHEN win_by_runs > 0
-                        THEN 'Won by runs'
-
-                    WHEN win_by_wickets > 0
-                        THEN 'Won by wickets'
-
-                    ELSE 'Other / No result'
-
-                END AS margin_type,
-
-                COUNT(*) AS matches
-
-            FROM matches_clean
-
-            WHERE season_year IN ({season_placeholders})
-
-            GROUP BY margin_type
-
-            """,
-            tuple(selected_seasons)
-        )
-
-    except Exception:
-
-        margin_df = pd.DataFrame()
-
-
-    if not margin_df.empty:
-
-        fig = px.bar(
-            margin_df,
-            x="margin_type",
-            y="matches",
-            text="matches",
-            title=(
-                "Matches are split between defending and chasing"
-            ),
-            labels={
-                "margin_type": "Result type",
-                "matches": "Matches"
-            }
-        )
-
-
-        fig.update_traces(
-            textposition="outside"
-        )
-
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
-
-
-    # ============================================================
-    # VISUAL 5
+    # ========================================================
     # WICKETS PER MATCH
-    # ============================================================
+    # ========================================================
 
     st.subheader(
-        "Wickets per match show how match endings have changed"
+        "🎯 Average wickets per match"
     )
 
 
-    try:
+    if {
+        "season_year",
+        "match_id",
+        "wicket_type"
+    }.issubset(ball_columns):
 
-        wickets_df = q(
-            f"""
-            SELECT
+        try:
 
-                season_year,
-
-                ROUND(
-                    AVG(wickets),
-                    2
-                ) AS wickets_per_match,
-
-                COUNT(*) AS matches
-
-            FROM (
-
+            wicket_match_df = q(
+                f"""
                 SELECT
 
                     season_year,
@@ -910,48 +1084,78 @@ with tab1:
 
                 FROM v_ball
 
-                WHERE season_year IN ({season_placeholders})
+                WHERE season_year
+                    IN ({placeholders})
 
                 GROUP BY
                     season_year,
                     match_id
-
+                """,
+                tuple(selected_seasons)
             )
 
-            GROUP BY season_year
 
-            ORDER BY season_year
-            """,
-            tuple(selected_seasons)
-        )
+            if not wicket_match_df.empty:
 
-    except Exception:
-
-        wickets_df = pd.DataFrame()
-
-
-    if not wickets_df.empty:
-
-        fig = px.line(
-            wickets_df,
-            x="season_year",
-            y="wickets_per_match",
-            markers=True,
-            title=(
-                "Average wickets per match by season"
-            ),
-            labels={
-                "season_year": "Season",
-                "wickets_per_match":
-                    "Wickets per match"
-            }
-        )
+                wicket_season_df = (
+                    wicket_match_df
+                    .groupby("season_year")
+                    .agg(
+                        wickets_per_match=(
+                            "wickets",
+                            "mean"
+                        ),
+                        matches=(
+                            "match_id",
+                            "nunique"
+                        )
+                    )
+                    .reset_index()
+                )
 
 
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
+                wicket_season_df[
+                    "wickets_per_match"
+                ] = wicket_season_df[
+                    "wickets_per_match"
+                ].round(2)
+
+
+                fig = px.line(
+                    wicket_season_df,
+                    x="season_year",
+                    y="wickets_per_match",
+                    markers=True,
+                    text="wickets_per_match",
+                    title=(
+                        "Average wickets per match "
+                        "by season"
+                    ),
+                    labels={
+                        "season_year": "Season",
+                        "wickets_per_match":
+                            "Wickets per match"
+                    }
+                )
+
+
+                fig.update_traces(
+                    textposition="top center"
+                )
+
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Wicket chart could not be created."
+            )
+
+            st.code(str(e))
 
 
 # ################################################################
@@ -959,21 +1163,21 @@ with tab1:
 # MATCH DETAIL
 # ################################################################
 
-with tab2:
+with detail_tab:
 
     st.header(
-        "Match Detail — One Game at a Time"
+        "Match Detail"
     )
 
     st.write(
-        "Select a season and team first, then choose "
-        "one match. Every element responds to that match."
+        "Select a season, team and match to analyse "
+        "one IPL game."
     )
 
 
-    # ============================================================
+    # ========================================================
     # FILTER 1 — SEASON
-    # ============================================================
+    # ========================================================
 
     detail_season = st.selectbox(
         "1️⃣ Select Season",
@@ -982,9 +1186,9 @@ with tab2:
     )
 
 
-    # ============================================================
+    # ========================================================
     # FILTER 2 — TEAM
-    # ============================================================
+    # ========================================================
 
     try:
 
@@ -1006,15 +1210,21 @@ with tab2:
             .tolist()
         )
 
-    except Exception:
+    except Exception as e:
 
-        teams = []
+        st.error(
+            "Could not load teams."
+        )
+
+        st.code(str(e))
+
+        st.stop()
 
 
     if not teams:
 
         st.error(
-            "No teams were found in matches_clean."
+            "No teams found."
         )
 
         st.stop()
@@ -1027,9 +1237,9 @@ with tab2:
     )
 
 
-    # ============================================================
+    # ========================================================
     # FILTER 3 — MATCH
-    # ============================================================
+    # ========================================================
 
     try:
 
@@ -1044,6 +1254,8 @@ with tab2:
                 team2,
 
                 venue_clean,
+
+                city_clean,
 
                 season_year
 
@@ -1085,19 +1297,37 @@ with tab2:
         st.stop()
 
 
-    # Human-readable match name
+    # ========================================================
+    # CREATE MATCH LABEL
+    # ========================================================
+
     match_list_df["match_label"] = (
-        match_list_df["team1"].astype(str)
+
+        match_list_df[
+            "team1"
+        ].astype(str)
+
         + " vs "
-        + match_list_df["team2"].astype(str)
+
+        + match_list_df[
+            "team2"
+        ].astype(str)
+
         + " — "
+
         + match_list_df[
             "venue_clean"
-        ].fillna("Unknown venue").astype(str)
+        ].fillna(
+            "Unknown Venue"
+        ).astype(str)
+
         + " — "
+
         + match_list_df[
-            "season_year"
-        ].astype(str)
+            "city_clean"
+        ].fillna(
+            "Unknown City"
+        ).astype(str)
     )
 
 
@@ -1113,43 +1343,67 @@ with tab2:
     selected_match_id = match_list_df.loc[
         match_list_df[
             "match_label"
-        ] == selected_match_label,
+        ]
+        ==
+        selected_match_label,
         "match_id"
     ].iloc[0]
 
 
-    # ============================================================
-    # SELECTED MATCH INFORMATION
-    # ============================================================
+    # ========================================================
+    # MATCH INFORMATION
+    # ========================================================
 
-    match_info = q(
-        """
-        SELECT
+    try:
 
-            match_id,
-            season_year,
-            team1,
-            team2,
-            toss_winner,
-            toss_decision,
-            winner,
-            win_by_runs,
-            win_by_wickets,
-            player_of_match,
-            venue_clean
+        match_info = q(
+            """
+            SELECT
 
-        FROM matches_clean
+                match_id,
 
-        WHERE match_id = ?
-        """,
-        (selected_match_id,)
-    )
+                season_year,
+
+                team1,
+
+                team2,
+
+                venue_clean,
+
+                city_clean,
+
+                result,
+
+                match_winner,
+
+                player_of_match,
+
+                toss_winner,
+
+                toss_decision
+
+            FROM matches_clean
+
+            WHERE match_id = ?
+            """,
+            (selected_match_id,)
+        )
+
+    except Exception as e:
+
+        st.error(
+            "Could not load selected match."
+        )
+
+        st.code(str(e))
+
+        st.stop()
 
 
     if match_info.empty:
 
         st.error(
-            "Match information could not be found."
+            "Match information not found."
         )
 
         st.stop()
@@ -1158,94 +1412,66 @@ with tab2:
     match = match_info.iloc[0]
 
 
-    # ============================================================
-    # RESULT
-    # ============================================================
-
-    winner = match["winner"]
-
-    win_by_runs = (
-        match["win_by_runs"]
-        if pd.notna(match["win_by_runs"])
-        else 0
-    )
-
-    win_by_wickets = (
-        match["win_by_wickets"]
-        if pd.notna(match["win_by_wickets"])
-        else 0
-    )
-
-
-    if pd.isna(winner):
-
-        result_text = "No result"
-
-    elif win_by_runs > 0:
-
-        result_text = (
-            f"{winner} won by "
-            f"{int(win_by_runs)} runs"
-        )
-
-    elif win_by_wickets > 0:
-
-        result_text = (
-            f"{winner} won by "
-            f"{int(win_by_wickets)} wickets"
-        )
-
-    else:
-
-        result_text = (
-            f"{winner} won"
-        )
-
-
-    # ============================================================
+    # ========================================================
     # INNINGS SCORE
-    # ============================================================
+    # ========================================================
 
-    try:
-
-        innings_df = q(
-            """
-            SELECT
-
-                innings,
-
-                batting_team,
-
-                SUM(total_runs) AS runs,
-
-                COUNT(
-                    CASE
-                        WHEN wicket_type IS NOT NULL
-                        THEN 1
-                    END
-                ) AS wickets
-
-            FROM v_ball
-
-            WHERE match_id = ?
-
-            GROUP BY
-                innings,
-                batting_team
-
-            ORDER BY innings
-            """,
-            (selected_match_id,)
-        )
-
-    except Exception:
-
-        innings_df = pd.DataFrame()
+    innings_df = pd.DataFrame()
 
 
-    # ============================================================
-    # THREE DETAIL CARDS
-    # ============================================================
+    required_innings_columns = {
+        "match_id",
+        "innings",
+        "batting_team",
+        "total_runs"
+    }
+
+
+    if required_innings_columns.issubset(
+        ball_columns
+    ):
+
+        try:
+
+            innings_df = q(
+                """
+                SELECT
+
+                    innings,
+
+                    batting_team,
+
+                    SUM(total_runs)
+                        AS runs,
+
+                    COUNT(
+                        CASE
+                            WHEN wicket_type IS NOT NULL
+                            THEN 1
+                        END
+                    ) AS wickets
+
+                FROM v_ball
+
+                WHERE match_id = ?
+
+                GROUP BY
+                    innings,
+                    batting_team
+
+                ORDER BY innings
+                """,
+                (selected_match_id,)
+            )
+
+        except Exception:
+
+            innings_df = pd.DataFrame()
+
+
+    # ========================================================
+    # THREE MATCH CARDS
+    # ========================================================
 
     card1, card2, card3 = st.columns(3)
 
@@ -1253,8 +1479,8 @@ with tab2:
     with card1:
 
         st.metric(
-            "Match Result",
-            result_text
+            "🏆 Match Result",
+            str(match["result"])
         )
 
 
@@ -1262,20 +1488,26 @@ with tab2:
 
         if len(innings_df) >= 1:
 
-            first_team = innings_df.iloc[0][
-                "batting_team"
-            ]
+            first_team = (
+                innings_df.iloc[0][
+                    "batting_team"
+                ]
+            )
 
             first_runs = int(
-                innings_df.iloc[0]["runs"]
+                innings_df.iloc[0][
+                    "runs"
+                ]
             )
 
             first_wickets = int(
-                innings_df.iloc[0]["wickets"]
+                innings_df.iloc[0][
+                    "wickets"
+                ]
             )
 
             st.metric(
-                "First Innings",
+                "1st Innings",
                 (
                     f"{first_team}: "
                     f"{first_runs}/"
@@ -1286,7 +1518,7 @@ with tab2:
         else:
 
             st.metric(
-                "First Innings",
+                "1st Innings",
                 "No data"
             )
 
@@ -1295,20 +1527,26 @@ with tab2:
 
         if len(innings_df) >= 2:
 
-            second_team = innings_df.iloc[1][
-                "batting_team"
-            ]
+            second_team = (
+                innings_df.iloc[1][
+                    "batting_team"
+                ]
+            )
 
             second_runs = int(
-                innings_df.iloc[1]["runs"]
+                innings_df.iloc[1][
+                    "runs"
+                ]
             )
 
             second_wickets = int(
-                innings_df.iloc[1]["wickets"]
+                innings_df.iloc[1][
+                    "wickets"
+                ]
             )
 
             st.metric(
-                "Second Innings",
+                "2nd Innings",
                 (
                     f"{second_team}: "
                     f"{second_runs}/"
@@ -1319,7 +1557,7 @@ with tab2:
         else:
 
             st.metric(
-                "Second Innings",
+                "2nd Innings",
                 "No data"
             )
 
@@ -1327,366 +1565,652 @@ with tab2:
     st.divider()
 
 
-    # ============================================================
-    # HERO VISUAL
+    # ========================================================
+    # MATCH SUMMARY
+    # ========================================================
+
+    st.subheader(
+        "📋 Match Summary"
+    )
+
+
+    summary_df = pd.DataFrame({
+
+        "Information": [
+
+            "Season",
+
+            "Teams",
+
+            "Venue",
+
+            "City",
+
+            "Toss Winner",
+
+            "Toss Decision",
+
+            "Match Winner",
+
+            "Player of the Match",
+
+            "Result"
+
+        ],
+
+        "Details": [
+
+            match["season_year"],
+
+            (
+                f"{match['team1']} "
+                f"vs "
+                f"{match['team2']}"
+            ),
+
+            match["venue_clean"],
+
+            match["city_clean"],
+
+            match["toss_winner"],
+
+            match["toss_decision"],
+
+            match["match_winner"],
+
+            match["player_of_match"],
+
+            match["result"]
+
+        ]
+
+    })
+
+
+    st.dataframe(
+        summary_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+    # ========================================================
     # RUNS PER OVER
-    # ============================================================
+    # ========================================================
 
     st.subheader(
-        "The innings turned at the overs where scoring separated"
+        "📈 Runs per over"
     )
 
 
-    try:
-
-        over_df = q(
-            """
-            SELECT
-
-                innings,
-
-                batting_team,
-
-                over,
-
-                SUM(total_runs) AS runs
-
-            FROM v_ball
-
-            WHERE match_id = ?
-
-            GROUP BY
-                innings,
-                batting_team,
-                over
-
-            ORDER BY
-                innings,
-                over
-            """,
-            (selected_match_id,)
-        )
-
-    except Exception:
-
-        over_df = pd.DataFrame()
+    required_over_columns = {
+        "match_id",
+        "innings",
+        "batting_team",
+        "over",
+        "total_runs"
+    }
 
 
-    if not over_df.empty:
+    if required_over_columns.issubset(
+        ball_columns
+    ):
 
-        over_df["innings_label"] = (
-            over_df["batting_team"].astype(str)
-            + " — Innings "
-            + over_df["innings"].astype(str)
-        )
+        try:
+
+            over_df = q(
+                """
+                SELECT
+
+                    innings,
+
+                    batting_team,
+
+                    over,
+
+                    SUM(total_runs)
+                        AS runs
+
+                FROM v_ball
+
+                WHERE match_id = ?
+
+                GROUP BY
+
+                    innings,
+
+                    batting_team,
+
+                    over
+
+                ORDER BY
+
+                    innings,
+
+                    over
+                """,
+                (selected_match_id,)
+            )
 
 
-        fig = px.line(
-            over_df,
-            x="over",
-            y="runs",
-            color="innings_label",
-            markers=True,
-            title=(
-                "Runs per over reveal where the match changed"
-            ),
-            labels={
-                "over": "Over",
-                "runs": "Runs in over",
-                "innings_label": "Innings"
-            }
-        )
+            if not over_df.empty:
+
+                over_df[
+                    "innings_label"
+                ] = (
+
+                    over_df[
+                        "batting_team"
+                    ].astype(str)
+
+                    + " — Innings "
+
+                    + over_df[
+                        "innings"
+                    ].astype(str)
+                )
 
 
-        fig.update_layout(
-            height=500
-        )
+                fig = px.line(
+                    over_df,
+                    x="over",
+                    y="runs",
+                    color="innings_label",
+                    markers=True,
+                    title=(
+                        "Runs scored in each over"
+                    ),
+                    labels={
+                        "over": "Over",
+                        "runs": "Runs",
+                        "innings_label":
+                            "Innings"
+                    }
+                )
 
 
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
+                fig.update_layout(
+                    height=500
+                )
 
 
-        st.caption(
-            f"n = {over_df['over'].nunique()} overs represented."
-        )
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
 
 
-    # ============================================================
-    # VISUAL 2
-    # FOURS AND SIXES
-    # ============================================================
+                st.caption(
+                    "n = overs represented in the selected match."
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Runs-per-over chart failed."
+            )
+
+            st.code(str(e))
+
+
+    # ========================================================
+    # BOUNDARIES
+    # ========================================================
 
     st.subheader(
-        "The two innings produced different boundary profiles"
+        "💥 Fours and sixes"
     )
 
 
-    try:
+    if {
+        "match_id",
+        "batting_team",
+        "batsman_runs"
+    }.issubset(ball_columns):
 
-        boundary_df = q(
-            """
-            SELECT
+        try:
 
-                batting_team,
+            boundary_df = q(
+                """
+                SELECT
 
-                SUM(
-                    CASE
-                        WHEN batsman_runs = 4
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS fours,
+                    batting_team,
 
-                SUM(
-                    CASE
-                        WHEN batsman_runs = 6
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS sixes
+                    SUM(
+                        CASE
+                            WHEN batsman_runs = 4
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS fours,
 
-            FROM v_ball
+                    SUM(
+                        CASE
+                            WHEN batsman_runs = 6
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS sixes
 
-            WHERE match_id = ?
+                FROM v_ball
 
-            GROUP BY batting_team
-            """,
-            (selected_match_id,)
-        )
+                WHERE match_id = ?
 
-    except Exception:
-
-        boundary_df = pd.DataFrame()
-
-
-    if not boundary_df.empty:
-
-        boundary_long = boundary_df.melt(
-            id_vars=[
-                "batting_team"
-            ],
-            value_vars=[
-                "fours",
-                "sixes"
-            ],
-            var_name="boundary",
-            value_name="count"
-        )
+                GROUP BY batting_team
+                """,
+                (selected_match_id,)
+            )
 
 
-        fig = px.bar(
-            boundary_long,
-            x="batting_team",
-            y="count",
-            color="boundary",
-            barmode="group",
-            text="count",
-            title=(
-                "Fours and sixes explain how the innings scored"
-            ),
-            labels={
-                "batting_team": "Team",
-                "count": "Boundaries",
-                "boundary": "Boundary type"
-            }
-        )
+            if not boundary_df.empty:
+
+                boundary_long = (
+                    boundary_df
+                    .melt(
+                        id_vars=[
+                            "batting_team"
+                        ],
+                        value_vars=[
+                            "fours",
+                            "sixes"
+                        ],
+                        var_name="boundary_type",
+                        value_name="count"
+                    )
+                )
 
 
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
+                fig = px.bar(
+                    boundary_long,
+                    x="batting_team",
+                    y="count",
+                    color="boundary_type",
+                    barmode="group",
+                    text="count",
+                    title=(
+                        "Boundary profile of the two innings"
+                    ),
+                    labels={
+                        "batting_team": "Team",
+                        "count": "Boundaries",
+                        "boundary_type":
+                            "Boundary"
+                    }
+                )
 
 
-        st.caption(
-            f"n = {len(boundary_long):,} boundary groups."
-        )
+                fig.update_traces(
+                    textposition="outside"
+                )
 
 
-    # ============================================================
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Boundary chart failed."
+            )
+
+            st.code(str(e))
+
+
+    # ========================================================
     # TOP BATTERS
-    # ============================================================
+    # ========================================================
 
     st.subheader(
-        "The leading batters show who contributed most with the bat"
+        "🏏 Top run scorers"
     )
 
 
-    try:
-
-        top_batters_df = q(
-            """
-            SELECT
-
-                batter,
-
-                SUM(batsman_runs) AS runs,
-
-                COUNT(*) AS balls,
-
-                SUM(
-                    CASE
-                        WHEN batsman_runs = 4
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS fours,
-
-                SUM(
-                    CASE
-                        WHEN batsman_runs = 6
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS sixes
-
-            FROM v_ball
-
-            WHERE match_id = ?
-
-            GROUP BY batter
-
-            ORDER BY runs DESC
-
-            LIMIT 10
-            """,
-            (selected_match_id,)
-        )
-
-    except Exception:
-
-        top_batters_df = pd.DataFrame()
+    required_batting_columns = {
+        "match_id",
+        "batter",
+        "batsman_runs"
+    }
 
 
-    # ============================================================
+    if required_batting_columns.issubset(
+        ball_columns
+    ):
+
+        try:
+
+            batter_df = q(
+                """
+                SELECT
+
+                    batter,
+
+                    SUM(batsman_runs)
+                        AS runs,
+
+                    COUNT(*) AS balls,
+
+                    SUM(
+                        CASE
+                            WHEN batsman_runs = 4
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS fours,
+
+                    SUM(
+                        CASE
+                            WHEN batsman_runs = 6
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS sixes
+
+                FROM v_ball
+
+                WHERE match_id = ?
+
+                GROUP BY batter
+
+                ORDER BY runs DESC
+
+                LIMIT 10
+                """,
+                (selected_match_id,)
+            )
+
+
+            if not batter_df.empty:
+
+                st.dataframe(
+                    batter_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+
+                fig = px.bar(
+                    batter_df,
+                    x="batter",
+                    y="runs",
+                    text="runs",
+                    title=(
+                        "Top batters by runs"
+                    ),
+                    labels={
+                        "batter": "Batter",
+                        "runs": "Runs"
+                    }
+                )
+
+
+                fig.update_traces(
+                    textposition="outside"
+                )
+
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Batter analysis failed."
+            )
+
+            st.code(str(e))
+
+
+    # ========================================================
     # TOP BOWLERS
-    # ============================================================
+    # ========================================================
 
-    try:
-
-        top_bowlers_df = q(
-            """
-            SELECT
-
-                bowler,
-
-                SUM(
-                    CASE
-                        WHEN wicket_type IS NOT NULL
-                        AND wicket_type NOT IN (
-                            'retired hurt',
-                            'obstructing the field'
-                        )
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS wickets,
-
-                SUM(total_runs) AS runs_conceded,
-
-                COUNT(*) AS balls
-
-            FROM v_ball
-
-            WHERE match_id = ?
-
-            GROUP BY bowler
-
-            ORDER BY
-                wickets DESC,
-                runs_conceded ASC
-
-            LIMIT 10
-            """,
-            (selected_match_id,)
-        )
-
-    except Exception:
-
-        top_bowlers_df = pd.DataFrame()
-
-
-    # ============================================================
-    # DISPLAY PLAYER TABLES
-    # ============================================================
-
-    player_col1, player_col2 = st.columns(2)
-
-
-    with player_col1:
-
-        st.write(
-            "### 🏏 Top Run Scorers"
-        )
-
-        if not top_batters_df.empty:
-
-            st.dataframe(
-                top_batters_df,
-                use_container_width=True,
-                hide_index=True
-            )
-
-        else:
-
-            st.info(
-                "No batting data available."
-            )
-
-
-    with player_col2:
-
-        st.write(
-            "### 🎯 Top Wicket Takers"
-        )
-
-        if not top_bowlers_df.empty:
-
-            st.dataframe(
-                top_bowlers_df,
-                use_container_width=True,
-                hide_index=True
-            )
-
-        else:
-
-            st.info(
-                "No bowling data available."
-            )
-
-
-    st.caption(
-        "Player of the Match: "
-        + str(match["player_of_match"])
+    st.subheader(
+        "🎯 Top wicket takers"
     )
 
 
-    # ============================================================
-    # TOSS INFORMATION
-    # ============================================================
+    required_bowling_columns = {
+        "match_id",
+        "bowler",
+        "wicket_type"
+    }
+
+
+    if required_bowling_columns.issubset(
+        ball_columns
+    ):
+
+        try:
+
+            bowler_df = q(
+                """
+                SELECT
+
+                    bowler,
+
+                    SUM(
+                        CASE
+                            WHEN wicket_type IS NOT NULL
+                            AND LOWER(wicket_type)
+                                NOT IN (
+                                    'retired hurt',
+                                    'obstructing the field'
+                                )
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS wickets,
+
+                    SUM(total_runs)
+                        AS runs_conceded,
+
+                    COUNT(*) AS balls
+
+                FROM v_ball
+
+                WHERE match_id = ?
+
+                GROUP BY bowler
+
+                ORDER BY
+                    wickets DESC,
+                    runs_conceded ASC
+
+                LIMIT 10
+                """,
+                (selected_match_id,)
+            )
+
+
+            if not bowler_df.empty:
+
+                st.dataframe(
+                    bowler_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+
+                fig = px.bar(
+                    bowler_df,
+                    x="bowler",
+                    y="wickets",
+                    text="wickets",
+                    title=(
+                        "Top bowlers by wickets"
+                    ),
+                    labels={
+                        "bowler": "Bowler",
+                        "wickets": "Wickets"
+                    }
+                )
+
+
+                fig.update_traces(
+                    textposition="outside"
+                )
+
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Bowler analysis failed."
+            )
+
+            st.code(str(e))
+
+
+    # ========================================================
+    # PHASE ANALYSIS
+    # ========================================================
 
     st.subheader(
-        "The toss choice and match result put the game in context"
+        "⚡ Scoring by match phase"
+    )
+
+
+    if {
+        "match_id",
+        "over",
+        "batting_team",
+        "total_runs"
+    }.issubset(ball_columns):
+
+        try:
+
+            phase_df = q(
+                """
+                SELECT
+
+                    batting_team,
+
+                    CASE
+
+                        WHEN over < 6
+                            THEN 'Powerplay'
+
+                        WHEN over < 15
+                            THEN 'Middle Overs'
+
+                        ELSE 'Death Overs'
+
+                    END AS phase,
+
+                    SUM(total_runs)
+                        AS runs
+
+                FROM v_ball
+
+                WHERE match_id = ?
+
+                GROUP BY
+
+                    batting_team,
+
+                    phase
+
+                ORDER BY
+
+                    batting_team,
+
+                    CASE
+
+                        WHEN phase = 'Powerplay'
+                            THEN 1
+
+                        WHEN phase = 'Middle Overs'
+                            THEN 2
+
+                        ELSE 3
+
+                    END
+                """,
+                (selected_match_id,)
+            )
+
+
+            if not phase_df.empty:
+
+                fig = px.bar(
+                    phase_df,
+                    x="phase",
+                    y="runs",
+                    color="batting_team",
+                    barmode="group",
+                    text="runs",
+                    title=(
+                        "Runs scored in each innings phase"
+                    ),
+                    labels={
+                        "phase": "Phase",
+                        "runs": "Runs",
+                        "batting_team":
+                            "Batting Team"
+                    }
+                )
+
+
+                fig.update_traces(
+                    textposition="outside"
+                )
+
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+        except Exception as e:
+
+            st.warning(
+                "Phase analysis failed."
+            )
+
+            st.code(str(e))
+
+
+    # ========================================================
+    # TOSS ANALYSIS
+    # ========================================================
+
+    st.subheader(
+        "🪙 Toss information"
     )
 
 
     toss_df = pd.DataFrame({
 
-        "Item": [
+        "Information": [
+
             "Toss Winner",
+
             "Toss Decision",
+
             "Match Winner",
-            "Venue"
+
+            "Player of the Match"
+
         ],
 
         "Value": [
+
             match["toss_winner"],
+
             match["toss_decision"],
-            match["winner"],
-            match["venue_clean"]
+
+            match["match_winner"],
+
+            match["player_of_match"]
+
         ]
 
     })
@@ -1699,88 +2223,6 @@ with tab2:
     )
 
 
-    # ============================================================
-    # PHASE ANALYSIS
-    # ============================================================
-
-    st.subheader(
-        "The scoring split shows where each innings built or lost momentum"
-    )
-
-
-    try:
-
-        phase_df = q(
-            """
-            SELECT
-
-                batting_team,
-
-                CASE
-
-                    WHEN over < 6
-                        THEN 'Powerplay'
-
-                    WHEN over < 15
-                        THEN 'Middle'
-
-                    ELSE 'Death'
-
-                END AS phase,
-
-                SUM(total_runs) AS runs
-
-            FROM v_ball
-
-            WHERE match_id = ?
-
-            GROUP BY
-                batting_team,
-                phase
-
-            ORDER BY
-                batting_team,
-                phase
-            """,
-            (selected_match_id,)
-        )
-
-    except Exception:
-
-        phase_df = pd.DataFrame()
-
-
-    if not phase_df.empty:
-
-        fig = px.bar(
-            phase_df,
-            x="phase",
-            y="runs",
-            color="batting_team",
-            barmode="group",
-            text="runs",
-            title=(
-                "Scoring by phase shows where the match momentum moved"
-            ),
-            labels={
-                "phase": "Innings phase",
-                "runs": "Runs",
-                "batting_team": "Team"
-            }
-        )
-
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
-
-
-        st.caption(
-            f"n = {len(phase_df):,} team-phase observations."
-        )
-
-
 # ============================================================
 # FOOTER
 # ============================================================
@@ -1788,5 +2230,6 @@ with tab2:
 st.divider()
 
 st.caption(
-    "IPL Cricket Analytics | Domain C — Matches"
+    "🏏 IPL Match Analytics Dashboard | "
+    "Domain C — Matches"
 )
