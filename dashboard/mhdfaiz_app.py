@@ -21,7 +21,7 @@ st.set_page_config(
 # DATABASE
 # ============================================================
 
-DB = "../data/ipl.db"
+DB = r"C:\Users\Scalefusion admin\OneDrive\Documents\OJT- SEM 3\project_3.1 sem 3\data\raw\ipl.db"
 
 
 @st.cache_resource
@@ -235,15 +235,6 @@ with st.sidebar:
         "Use the controls below to explore the IPL data."
     )
 
-    st.divider()
-
-    st.caption(
-        "Database: data/ipl.db"
-    )
-
-    st.caption(
-        "Dashboard: dashboard/app.py"
-    )
 
 
 # ============================================================
@@ -367,29 +358,34 @@ with overview_tab:
 
     total_runs = 0
 
-    if "season_year" in ball_columns and "total_runs" in ball_columns:
+if "total_runs" in ball_columns:
 
-        try:
+    try:
 
-            runs_df = q(
-                f"""
-                SELECT
-                    SUM(total_runs) AS total_runs
-                FROM v_ball
-                WHERE season_year IN ({placeholders})
-                """,
-                tuple(selected_seasons)
-            )
+        runs_df = q(
+            f"""
+            SELECT
+                SUM(v.total_runs) AS total_runs
 
-            total_runs = int(
-                runs_df.iloc[0]["total_runs"]
-                or 0
-            )
+            FROM v_ball v
 
-        except Exception:
+            INNER JOIN matches_clean m
+                ON v.match_id = m.match_id
 
-            total_runs = 0
+            WHERE m.season_year IN ({placeholders})
+            """,
+            tuple(selected_seasons)
+        )
 
+        total_runs = int(
+            runs_df.iloc[0]["total_runs"] or 0
+        )
+
+    except Exception as e:
+
+        total_runs = 0
+        st.warning("Could not calculate total runs.")
+        st.code(str(e))
 
     # ========================================================
     # KPI 3 — CHASE WIN RATE
@@ -2233,3 +2229,5 @@ st.caption(
     "🏏 IPL Match Analytics Dashboard | "
     "Domain C — Matches"
 )
+
+
